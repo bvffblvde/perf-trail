@@ -122,3 +122,39 @@ describe("preview deployments", () => {
     expect(target.kind === "skip" && target.reason).toContain('"Preview"');
   });
 });
+
+describe("pull request events", () => {
+  const options = { environmentPrefix: "Production", previewPrefix: "Preview" };
+  const event = (action: string, draft = false) => ({
+    action,
+    pull_request: { number: 7, head: { sha: "abc1234" }, draft },
+  });
+
+  it.each(["opened", "reopened", "ready_for_review"])(
+    "looks up the preview when a PR is %s",
+    (action) => {
+      expect(resolveTarget("pull_request", event(action), "merge", options)).toEqual({
+        kind: "pull_request",
+        sha: "abc1234",
+        number: 7,
+      });
+    },
+  );
+
+  it("leaves new pushes to the deployment_status run", () => {
+    const target = resolveTarget("pull_request", event("synchronize"), "merge", options);
+    expect(target.kind === "skip" && target.reason).toContain("deployment_status");
+  });
+
+  it("skips drafts", () => {
+    const target = resolveTarget("pull_request", event("opened", true), "merge", options);
+    expect(target.kind === "skip" && target.reason).toContain("draft");
+  });
+
+  it("needs preview-comment", () => {
+    const target = resolveTarget("pull_request", event("opened"), "merge", {
+      environmentPrefix: "Production",
+    });
+    expect(target.kind === "skip" && target.reason).toContain("preview-comment");
+  });
+});

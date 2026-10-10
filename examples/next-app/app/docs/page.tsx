@@ -107,9 +107,14 @@ jobs:
         with:
           urls: https://you.github.io/your-site/`;
 
-const previewWorkflow = `permissions:
+const previewWorkflow = `on:
+  deployment_status:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+permissions:
   contents: write
   pull-requests: write
+  deployments: read
 jobs:
   perf:
     runs-on: ubuntu-latest
@@ -286,7 +291,8 @@ export default function Docs() {
         Turn on preview-comment and the same workflow measures successful preview deployments, finds
         the pull request that contains the commit, and keeps one comment on it up to date, compared
         with the latest production entry. Previews never write to the history. Vercel previews need
-        a Protection Bypass for Automation secret, sent as a header.
+        a Protection Bypass for Automation secret, sent as a header. The pull_request trigger covers
+        a pull request opened after its preview already deployed.
       </p>
       <Code code={previewWorkflow} label="preview comments" language="yaml" />
       <h3>Private repositories</h3>

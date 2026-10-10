@@ -344,3 +344,36 @@ describe("preview comments", () => {
     expect(state.audited).toEqual([]);
   });
 });
+
+describe("pull request opened after the preview deployed", () => {
+  const prEvent = () =>
+    Object.assign(state.context, {
+      eventName: "pull_request",
+      payload: { action: "opened", pull_request: { number: 9, head: { sha: SHA } } },
+    });
+
+  it("finds the finished preview deployment and comments", async () => {
+    prEvent();
+    state.inputs["preview-comment"] = "true";
+    gh.current?.previews.set(SHA, {
+      url: "https://site-git-late.vercel.app",
+      environment: "Preview",
+    });
+    await run();
+    expect(state.failed).toBeUndefined();
+    expect(state.audited[0]).toBe("https://site-git-late.vercel.app/en");
+    expect(gh.current?.comments.get(9)?.[0]).toContain(
+      "Measured on https://site-git-late.vercel.app",
+    );
+    expect(gh.current?.commits).toEqual([]);
+  });
+
+  it("skips until a preview deployment exists", async () => {
+    prEvent();
+    state.inputs["preview-comment"] = "true";
+    await run();
+    expect(state.outputs.skipped).toBe("true");
+    expect(state.logs.join("\n")).toContain("no successful preview deployment for abcdef1 yet");
+    expect(state.audited).toEqual([]);
+  });
+});

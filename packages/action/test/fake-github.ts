@@ -13,6 +13,7 @@ export function fakeGitHub(initial: Record<string, FakeBranch> = {}) {
   let conflicts = 0;
   const pulls = new Map<string, number>();
   const comments = new Map<number, string[]>();
+  const previews = new Map<string, { url: string; environment: string }>();
   const api: GitHubApi = {
     async getCommit(sha) {
       return {
@@ -43,6 +44,10 @@ export function fakeGitHub(initial: Record<string, FakeBranch> = {}) {
     async findPullRequest(sha) {
       return pulls.get(sha);
     },
+    async findPreviewDeployment(sha, environmentPrefix) {
+      const found = previews.get(sha);
+      return found?.environment.startsWith(environmentPrefix) ? found : undefined;
+    },
     async upsertComment(issue, heading, body) {
       const list = comments.get(issue) ?? [];
       const index = list.findIndex((c) => c.startsWith(heading));
@@ -58,6 +63,7 @@ export function fakeGitHub(initial: Record<string, FakeBranch> = {}) {
     commits,
     pulls,
     comments,
+    previews,
     failNextCommits(count: number) {
       conflicts = count;
     },

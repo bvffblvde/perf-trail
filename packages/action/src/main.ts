@@ -22,31 +22,47 @@ import { installLighthouse, measurePage } from "./lighthouse.ts";
 import { revalidate } from "./revalidate.ts";
 import { readLatest, saveEntry } from "./store.ts";
 import { PREVIEW_HEADING, summaryMarkdown } from "./summary.ts";
-import { auditUrls, resolveTarget } from "./target.ts";
+import { auditUrls, resolveTarget, type Target } from "./target.ts";
 
 export async function run(): Promise<void> {
   try {
     const inputs = readInputs((name) => core.getInput(name));
     for (const value of Object.values(inputs.extraHeaders)) core.setSecret(value);
-    const target = resolveTarget(context.eventName, context.payload, context.sha, {
+    const resolved = resolveTarget(context.eventName, context.payload, context.sha, {
       environmentPrefix: inputs.environmentPrefix,
       previewPrefix: inputs.previewComment ? inputs.previewEnvironmentPrefix : undefined,
     });
-    if (target.kind === "skip") {
-      core.info(`perf-trail: skipped, ${target.reason}`);
-      core.setOutput("skipped", "true");
-      return;
-    }
-    core.setOutput("skipped", "false");
+    if (resolved.kind === "skip") return skip(resolved.reason);
 
     const api = createGitHubApi(inputs.token, context.repo);
-    const preview = target.kind === "preview";
-    const issue = preview ? await api.findPullRequest(target.sha) : undefined;
-    if (preview && issue === undefined) {
-      core.info(`perf-trail: skipped, no pull request contains ${target.sha.slice(0, 7)}`);
-      core.setOutput("skipped", "true");
-      return;
+    let target: Exclude<Target, { kind: "skip" } | { kind: "pull_request" }>;
+    let issue: number | undefined;
+    if (resolved.kind === "pull_request") {
+      const deployment = await api.findPreviewDeployment(
+        resolved.sha,
+        inputs.previewEnvironmentPrefix,
+      );
+      if (!deployment) {
+        return skip(
+          `no successful preview deployment for ${resolved.sha.slice(0, 7)} yet, the deployment_status run comments when it is ready`,
+        );
+      }
+      issue = resolved.number;
+      target = {
+        kind: "preview",
+        sha: resolved.sha,
+        deploymentUrl: deployment.url,
+        environment: deployment.environment,
+      };
+    } else {
+      target = resolved;
+      if (target.kind === "preview") {
+        issue = await api.findPullRequest(target.sha);
+        if (issue === undefined) return skip(`no pull request contains ${target.sha.slice(0, 7)}`);
+      }
     }
+    core.setOutput("skipped", "false");
+    const preview = target.kind === "preview";
 
     const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
     const cwd = resolve(workspace, inputs.workingDirectory);
@@ -201,6 +217,11 @@ async function readBudgets(path: string): Promise<Budgets> {
   } catch (error) {
     throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+function skip(reason: string): void {
+  core.info(`perf-trail: skipped, ${reason}`);
+  core.setOutput("skipped", "true");
 }
 
 function describe({ scores, metrics }: PageResult): string {

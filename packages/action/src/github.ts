@@ -17,6 +17,10 @@ export interface GitHubApi {
     message: string;
   }): Promise<CommitFilesResult>;
   findPullRequest(sha: string): Promise<number | undefined>;
+  findPreviewDeployment(
+    sha: string,
+    environmentPrefix: string,
+  ): Promise<{ url: string; environment: string } | undefined>;
   upsertComment(issue: number, heading: string, body: string): Promise<"created" | "updated">;
 }
 
@@ -59,6 +63,21 @@ export function createGitHubApi(token: string, repo: Repo): GitHubApi {
       });
       const open = data.filter((pr) => pr.state === "open");
       return (open[0] ?? data[0])?.number;
+    },
+    async findPreviewDeployment(sha, environmentPrefix) {
+      const { data } = await rest.repos.listDeployments({ ...repo, sha, per_page: 20 });
+      for (const deployment of data) {
+        if (!deployment.environment.startsWith(environmentPrefix)) continue;
+        const { data: statuses } = await rest.repos.listDeploymentStatuses({
+          ...repo,
+          deployment_id: deployment.id,
+          per_page: 1,
+        });
+        const status = statuses[0];
+        const url = status?.environment_url || status?.target_url;
+        if (status?.state === "success" && url) return { url, environment: deployment.environment };
+      }
+      return undefined;
     },
     async upsertComment(issue, heading, body) {
       const { data } = await rest.issues.listComments({

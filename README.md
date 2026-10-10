@@ -65,10 +65,17 @@ Every run writes a table with deltas to the job summary.
 
 With `preview-comment: true` the action also measures successful preview deployments, finds the pull request that contains the commit, and keeps one comment on it up to date with the scores, metrics, bundle sizes and budgets compared with the latest production entry. Previews never write to the history.
 
+Also trigger on `pull_request` so a pull request opened after its preview finished deploying still gets a comment: the action looks up the latest successful preview deployment of the head commit.
+
 ```yaml
+on:
+  deployment_status:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
 permissions:
   contents: write
   pull-requests: write
+  deployments: read
 ```
 
 Vercel previews sit behind Deployment Protection by default. Create a Protection Bypass for Automation secret in the Vercel project and pass it as a header:

@@ -2,11 +2,14 @@ name: Perf
 
 on:
   deployment_status:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
+  deployments: read
 
 concurrency:
   group: perf-trail-${{ github.event.deployment.environment || github.ref }}
@@ -19,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.deployment.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.event.deployment.sha || github.sha }}
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
