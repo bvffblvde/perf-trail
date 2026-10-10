@@ -92,6 +92,13 @@ Each run writes SVG badges to `badges/` in the data branch: `performance.svg` an
 npm install @perf-trail/client @perf-trail/react
 ```
 
+pnpm 11 and later refuse packages published less than a day ago. To take a fresh perf-trail release right away, allow the scope in `pnpm-workspace.yaml`:
+
+```yaml
+minimumReleaseAgeExclude:
+  - "@perf-trail/*"
+```
+
 ```tsx
 import { fetchHistory } from "@perf-trail/client";
 import { LatestDeployCard, PerfHistoryChart } from "@perf-trail/react";
